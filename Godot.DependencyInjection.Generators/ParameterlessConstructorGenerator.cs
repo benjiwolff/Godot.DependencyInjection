@@ -1,8 +1,8 @@
 ﻿using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Godot.DependencyInjection.Generators;
 
@@ -47,43 +47,65 @@ public class ParameterlessConstructorGenerator : IIncrementalGenerator
         foreach (var @class in classesThatMissParameterlessConstructor)
         {
             var existingConstructor = constructorLookup[@class].First();
+            var existingClassDeclarationSyntax = (ClassDeclarationSyntax)existingConstructor.Parent!;
+            var semanticModel = compilation.GetSemanticModel(existingClassDeclarationSyntax.SyntaxTree);
+
             var stringBuilder = new StringBuilder();
             if (@class.NamespaceOrNull() is { } @namespace)
             {
                 stringBuilder.AppendLine(
                     SyntaxFactory.FileScopedNamespaceDeclaration(SyntaxFactory.ParseName(@namespace))
+                        .NormalizeWhitespace()
                         .ToFullString());
             }
 
-            stringBuilder.AppendLine(
-                SyntaxFactory.ClassDeclaration(@class.Name)
-                    .AddMembers(
-                        SyntaxFactory.ConstructorDeclaration(
-                            SyntaxFactory.List<AttributeListSyntax>(),
-                            SyntaxFactory.TokenList(),
-                            SyntaxFactory.Token(
-                                SyntaxFactory.TriviaList(),
-                                SyntaxKind.IdentifierName,
-                                @class.Name,
-                                @class.Name,
-                                SyntaxFactory.TriviaList()),
-                            SyntaxFactory.ParameterList(),
-                            SyntaxFactory.ConstructorInitializer(
-                                SyntaxKind.ThisConstructorInitializer,
-                                SyntaxFactory.ArgumentList(
-                                    SyntaxFactory
-                                        .SeparatedList(
-                                            existingConstructor.ParameterList.Parameters.Select(
-                                                p =>
-                                                    SyntaxFactory.Argument(
-                                                        SyntaxFactory.DefaultExpression(p.Type!)))))),
-                            (BlockSyntax?)null,
-                            SyntaxFactory.Token(SyntaxKind.None)))
-                    .ToFullString());
+            var constructorDeclarationSyntax = SyntaxFactory.ConstructorDeclaration(
+                attributeLists: SyntaxFactory.List<AttributeListSyntax>(),
+                modifiers: SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword)),
+                identifier: SyntaxFactory.Identifier(@class.Name),
+                parameterList: SyntaxFactory.ParameterList(),
+                initializer: SyntaxFactory.ConstructorInitializer(
+                    SyntaxKind.ThisConstructorInitializer,
+                    SyntaxFactory.ArgumentList(
+                        SyntaxFactory
+                            .SeparatedList(
+                                existingConstructor.ParameterList.Parameters.Select(
+                                    p =>
+                                        SyntaxFactory.Argument(
+                                            SyntaxFactory.DefaultExpression(
+                                                SyntaxFactory.ParseTypeName(
+                                                    semanticModel.GetTypeInfo(p.Type!).Type!.ToDisplayString(
+                                                        SymbolDisplayFormat.FullyQualifiedFormat)))))))),
+                body: SyntaxFactory.Block(),
+                semicolonToken: SyntaxFactory.Token(SyntaxKind.None));
+
+            var classDeclaration = ExtendPartialClass(
+                existingClassDeclarationSyntax,
+                new[] { constructorDeclarationSyntax });
+
+            for (var parent = existingClassDeclarationSyntax.Parent; parent is not null; parent = parent.Parent)
+            {
+                if (parent is TypeDeclarationSyntax outerType)
+                {
+                    classDeclaration = ExtendPartialClass(outerType, new[] { classDeclaration });
+                }
+            }
+
+            stringBuilder.AppendLine(classDeclaration.NormalizeWhitespace().ToFullString());
 
             context.AddSource(
-                @class.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "g.cs",
+                @class.Name + ".g.cs",
                 stringBuilder.ToString());
         }
+    }
+
+    private static TypeDeclarationSyntax ExtendPartialClass(
+        TypeDeclarationSyntax outerType,
+        IEnumerable<MemberDeclarationSyntax> memberDeclarationSyntaxes)
+    {
+        return outerType.RemoveNodes(
+                outerType.ChildNodes().Where(n => n is MemberDeclarationSyntax or BaseListSyntax),
+                SyntaxRemoveOptions.KeepNoTrivia)!
+            .WithMembers(SyntaxFactory.List(memberDeclarationSyntaxes));
     }
 }
