@@ -12,8 +12,8 @@ public class ParameterlessConstructorGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var syntaxProvider = context.SyntaxProvider.CreateSyntaxProvider(
-            (node, _) => node is ConstructorDeclarationSyntax { Parent: ClassDeclarationSyntax },
-            (ctx, _) => (ConstructorDeclarationSyntax)ctx.Node);
+            (node, _) => node is ParameterListSyntax { Parent: ConstructorDeclarationSyntax or TypeDeclarationSyntax },
+            (ctx, _) => (ParameterListSyntax)ctx.Node);
         var combinedProvider = context.CompilationProvider.Combine(syntaxProvider.Collect());
         context.RegisterImplementationSourceOutput(
             combinedProvider,
@@ -23,15 +23,13 @@ public class ParameterlessConstructorGenerator : IIncrementalGenerator
     private static void GenerateParameterlessConstructors(
         SourceProductionContext context,
         Compilation compilation,
-        IImmutableList<ConstructorDeclarationSyntax> constructorDeclarationSyntaxes)
+        IImmutableList<ParameterListSyntax> parameterListSyntaxes)
     {
-        var constructorLookup = constructorDeclarationSyntaxes
-            .ToLookup<ConstructorDeclarationSyntax, ITypeSymbol, ConstructorDeclarationSyntax>(
-                c => compilation.GetSemanticModel(c.SyntaxTree)
-                    .GetDeclaredSymbol(
-                        (ClassDeclarationSyntax)c.Parent!,
-                        context.CancellationToken)!,
-                c => c,
+        var constructorLookup = parameterListSyntaxes
+            .ToLookup<ParameterListSyntax, ITypeSymbol, ParameterListSyntax>(
+                pl => compilation.GetSemanticModel(pl.SyntaxTree)
+                    .GetDeclaredSymbol(GetTypeDeclarationOfConstructorParameterList(pl), context.CancellationToken)!,
+                pl => pl,
                 SymbolEqualityComparer.Default);
 
         var godotScripts = constructorLookup.Select(g => g.Key)
@@ -42,12 +40,12 @@ public class ParameterlessConstructorGenerator : IIncrementalGenerator
         var classesThatMissParameterlessConstructor = godotScripts.Where(
             g => constructorLookup[g].ToArray() is var constructors &&
                  constructors.Any() &&
-                 constructors.All(c => c.ParameterList.Parameters.Count > 0));
+                 constructors.All(c => c.Parameters.Count > 0));
 
         foreach (var @class in classesThatMissParameterlessConstructor)
         {
-            var existingConstructor = constructorLookup[@class].First();
-            var existingClassDeclarationSyntax = (ClassDeclarationSyntax)existingConstructor.Parent!;
+            var existingParameterList = constructorLookup[@class].First();
+            var existingClassDeclarationSyntax = GetTypeDeclarationOfConstructorParameterList(existingParameterList);
             var semanticModel = compilation.GetSemanticModel(existingClassDeclarationSyntax.SyntaxTree);
 
             var stringBuilder = new StringBuilder();
@@ -69,7 +67,7 @@ public class ParameterlessConstructorGenerator : IIncrementalGenerator
                     SyntaxFactory.ArgumentList(
                         SyntaxFactory
                             .SeparatedList(
-                                existingConstructor.ParameterList.Parameters.Select(
+                                existingParameterList.Parameters.Select(
                                     p =>
                                         SyntaxFactory.Argument(
                                             SyntaxFactory.DefaultExpression(
@@ -104,8 +102,30 @@ public class ParameterlessConstructorGenerator : IIncrementalGenerator
         IEnumerable<MemberDeclarationSyntax> memberDeclarationSyntaxes)
     {
         return outerType.RemoveNodes(
-                outerType.ChildNodes().Where(n => n is MemberDeclarationSyntax or BaseListSyntax),
+                outerType.ChildNodes()
+                    .Where(n => n is MemberDeclarationSyntax or BaseListSyntax or ParameterListSyntax),
                 SyntaxRemoveOptions.KeepNoTrivia)!
             .WithMembers(SyntaxFactory.List(memberDeclarationSyntaxes));
+    }
+
+    private static TypeDeclarationSyntax GetTypeDeclarationOfConstructorParameterList(ParameterListSyntax parameterList)
+    {
+        if (parameterList is { Parent: TypeDeclarationSyntax typeDeclarationSyntaxViaPrimaryConstructor })
+        {
+            return typeDeclarationSyntaxViaPrimaryConstructor;
+        }
+
+        if (parameterList is
+            {
+                Parent: ConstructorDeclarationSyntax
+                {
+                    Parent: TypeDeclarationSyntax typeDeclarationSyntaxViaExplicitConstructor
+                }
+            })
+        {
+            return typeDeclarationSyntaxViaExplicitConstructor;
+        }
+
+        throw new InvalidOperationException($"Could not find type corresponding to constructor parameter list {parameterList}.");
     }
 }
