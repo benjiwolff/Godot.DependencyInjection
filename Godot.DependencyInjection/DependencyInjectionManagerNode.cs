@@ -1,4 +1,5 @@
 ﻿using Godot.DependencyInjection.Injection;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Godot.DependencyInjection;
 
@@ -7,6 +8,7 @@ public abstract partial class DependencyInjectionManagerNode : Node
     public static DependencyInjectionManagerNode Instance => _instance ??
                                                              throw new InvalidOperationException(
                                                                  $"{nameof(DependencyInjectionManagerNode)} is not initialized.");
+
     private static DependencyInjectionManagerNode? _instance;
 
     public DependencyInjectionManagerNode()
@@ -16,7 +18,16 @@ public abstract partial class DependencyInjectionManagerNode : Node
             throw new InvalidCastException(
                 $"Failed to create {nameof(DependencyInjectionManagerNode)}. Only one instance is allowed.");
         }
+
         _instance = this;
+        var configs = GetType().Assembly.GetTypes().Where(t => t.IsAssignableTo(typeof(IStaticServicesConfigurator)));
+        var serviceCollection = new ServiceCollection();
+        foreach (var c in configs)
+        {
+            c.GetMethod(nameof(IStaticServicesConfigurator.ConfigureServices))!.Invoke(null, [serviceCollection]);
+        }
+
+        ServiceProvider = serviceCollection.BuildServiceProvider();
     }
 
     private InjectionService _injectionService = null!;
@@ -37,6 +48,7 @@ public abstract partial class DependencyInjectionManagerNode : Node
         {
             _injectionService.InjectDependencies(node);
         }
+
         tree.NodeAdded += _injectionService.InjectDependencies;
     }
 }
