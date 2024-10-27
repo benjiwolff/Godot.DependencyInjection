@@ -49,6 +49,10 @@ public class ParameterlessConstructorGenerator : IIncrementalGenerator
             var semanticModel = compilation.GetSemanticModel(existingClassDeclarationSyntax.SyntaxTree);
 
             var stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine(
+                SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("Microsoft.Extensions.DependencyInjection"))
+                    .NormalizeWhitespace()
+                    .ToFullString());
             if (@class.NamespaceOrNull() is { } @namespace)
             {
                 stringBuilder.AppendLine(
@@ -70,12 +74,33 @@ public class ParameterlessConstructorGenerator : IIncrementalGenerator
                                 existingParameterList.Parameters.Select(
                                     p =>
                                         SyntaxFactory.Argument(
-                                            SyntaxFactory.DefaultExpression(
-                                                SyntaxFactory.ParseTypeName(
-                                                    semanticModel.GetTypeInfo(p.Type!).Type!.ToDisplayString(
-                                                        SymbolDisplayFormat.FullyQualifiedFormat)))))))),
-                body: SyntaxFactory.Block(),
-                semicolonToken: SyntaxFactory.Token(SyntaxKind.None));
+                                            SyntaxFactory.InvocationExpression(
+                                                SyntaxFactory.MemberAccessExpression(
+                                                    SyntaxKind.SimpleMemberAccessExpression,
+                                                    SyntaxFactory.MemberAccessExpression(
+                                                        SyntaxKind.SimpleMemberAccessExpression,
+                                                        SyntaxFactory.MemberAccessExpression(
+                                                            SyntaxKind.SimpleMemberAccessExpression,
+                                                            SyntaxFactory.ParseTypeName(
+                                                                "Godot.DependencyInjection.DependencyInjectionManagerNode"),
+                                                            SyntaxFactory.IdentifierName("Instance")),
+                                                        SyntaxFactory.IdentifierName("ServiceProvider")),
+                                                    SyntaxFactory.GenericName(
+                                                        SyntaxFactory.Identifier("GetRequiredService"),
+                                                        SyntaxFactory.TypeArgumentList(
+                                                            SyntaxFactory.SeparatedList(
+                                                                new[]
+                                                                {
+                                                                    SyntaxFactory.ParseTypeName(
+                                                                        semanticModel.GetTypeInfo(p.Type!)
+                                                                            .Type!.ToDisplayString(
+                                                                                SymbolDisplayFormat.FullyQualifiedFormat))
+                                                                })))),
+                                                SyntaxFactory.ArgumentList())))))),
+                body:
+                SyntaxFactory.Block(),
+                semicolonToken:
+                SyntaxFactory.Token(SyntaxKind.None));
 
             var classDeclaration = ExtendPartialClass(
                 existingClassDeclarationSyntax,
@@ -126,6 +151,7 @@ public class ParameterlessConstructorGenerator : IIncrementalGenerator
             return typeDeclarationSyntaxViaExplicitConstructor;
         }
 
-        throw new InvalidOperationException($"Could not find type corresponding to constructor parameter list {parameterList}.");
+        throw new InvalidOperationException(
+            $"Could not find type corresponding to constructor parameter list {parameterList}.");
     }
 }
