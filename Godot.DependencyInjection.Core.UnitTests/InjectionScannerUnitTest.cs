@@ -1,4 +1,3 @@
-using System.Linq;
 using Godot.DependencyInjection.Core.UnitTests.FirstAssemblyToScan;
 using Godot.DependencyInjection.Core.UnitTests.SecondAssemblyToScan;
 using Godot.DependencyInjection.Scanning;
@@ -12,7 +11,7 @@ public class InjectionScannerUnitTest
     {
         var assemblies = new[]
         {
-            typeof(FirstAssembly1).Assembly, 
+            typeof(FirstAssembly1).Assembly,
             typeof(SecondAssembly1).Assembly,
         };
         var metadata = InjectionScanner.CollectMetadata(assemblies);
@@ -25,7 +24,7 @@ public class InjectionScannerUnitTest
     {
         var assemblies = new[]
         {
-            typeof(FirstAssembly1).Assembly, 
+            typeof(FirstAssembly1).Assembly,
             typeof(SecondAssembly1).Assembly,
         };
 
@@ -39,7 +38,7 @@ public class InjectionScannerUnitTest
     {
         var assemblies = new[]
         {
-            typeof(FirstAssembly1).Assembly, 
+            typeof(FirstAssembly1).Assembly,
         };
 
         var metadata = InjectionScanner.CollectMetadata(assemblies);

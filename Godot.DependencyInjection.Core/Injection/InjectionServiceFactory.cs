@@ -10,13 +10,12 @@ public interface INodeWrapper
 
 public static class InjectionServiceFactory
 {
-    public static (InjectionService injectionService, List<INodeWrapper> nodesToInject, IServiceProvider serviceProvider
-        ) Create(INodeWrapper sceneRootNode)
+    public static (InjectionService injectionService, List<INodeWrapper> nodesToInject) Create(INodeWrapper sceneRootNode)
     {
         var (nodesToInject, configurators) = ProcessInitialNodes(sceneRootNode);
         ServiceProvider serviceProvider = BuildServiceProvider(configurators);
         var injectionService = new InjectionService(serviceProvider);
-        return (injectionService: injectionService, nodesToInject: nodesToInject, serviceProvider);
+        return (injectionService: injectionService, nodesToInject: nodesToInject);
     }
     /// <summary>
     /// Registers services from nodes implementing <see cref="IServicesConfigurator"/>

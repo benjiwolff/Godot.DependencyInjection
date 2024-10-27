@@ -1,4 +1,3 @@
-using FluentAssertions.Equivalency;
 using Godot.DependencyInjection.Injection;
 
 namespace Godot.DependencyInjection.Core.UnitTests;
@@ -12,7 +11,7 @@ public class InjectionServiceUnitTest
         root.ReturnsNoChildren();
 
         var (sut, _) = InjectionServiceFactory.Create(root);
-        
+
         var action = () => sut.InjectDependencies(root);
 
         action.Should().NotThrow();

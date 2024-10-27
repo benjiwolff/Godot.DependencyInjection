@@ -29,7 +29,7 @@ public abstract partial class DependencyInjectionManagerNode : Node
     public override void _EnterTree()
     {
         var tree = GetTree();
-        (_injectionService, var nodesToInject, ServiceProvider) =
+        (_injectionService, var nodesToInject) =
             InjectionServiceFactory.Create(new NodeWrapper(tree.Root));
 
         var unpackedNodes = nodesToInject.Select(x => ((NodeWrapper)x).Node);

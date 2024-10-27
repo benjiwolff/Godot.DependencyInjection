@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Godot.DependencyInjection.Attributes;
+﻿using Godot.DependencyInjection.Attributes;
 
 namespace Godot.DependencyInjection.Core.UnitTests.FirstAssemblyToScan;
 
